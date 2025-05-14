@@ -30,7 +30,7 @@ while IFS= read -d $'\0' -r dir; do
     (
         cd "${builddir}"
         log "Building Docker image: ${image}"
-        docker build -t "${image}" . --build-arg BUILDPLATFORM=linux/amd64
+        docker build -t "${image}" . --build-arg BUILDPLATFORM=$BUILDPLATFORM
 
         log "Tagging image: ${image_with_sample_public_image_tag}"
         docker tag "${image}" "${image_with_sample_public_image_tag}"
