@@ -81,7 +81,7 @@ spec:
         - name: OTEL_SERVICE_NAME
           value: "{{ .Values.productCatalogService.name }}"
         {{- end }}
-        {{- if .Values.googleCloudOperations.tracing }}
+        {{- if .Values.opentelemetry.tracing }}
         - name: ENABLE_TRACING
           value: "1"
         {{- end }}
