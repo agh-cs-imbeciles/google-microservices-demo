@@ -10,15 +10,10 @@ log() { echo "$1" >&2; }
 
 TAG="${TAG:?TAG env variable must be specified}"
 REPO_PREFIX="${REPO_PREFIX:?REPO_PREFIX env variable must be specified, e.g. dockerhub-username}"
-# Optional: export DOCKERHUB_PASSWORD and DOCKERHUB_USERNAME for login automation
-
-# Docker Hub login (optional — remove if already logged in)
-if [ -n "${DOCKERHUB_USERNAME:-}" ] && [ -n "${DOCKERHUB_PASSWORD:-}" ]; then
-  echo "$DOCKERHUB_PASSWORD" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
-fi
+# Optional: export DOCKERHUB_PASSWORD and DOCKERHUB_USERNAME for login automatio
 
 while IFS= read -d $'\0' -r dir; do
-    svcname="$(basename "${dir}")"
+    svcname="hihihi"
     builddir="${dir}"
     #PR 516 moved cartservice build artifacts one level down to src
     if [ $svcname == "cartservice" ]
