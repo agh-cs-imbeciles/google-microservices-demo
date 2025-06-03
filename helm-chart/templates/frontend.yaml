@@ -120,6 +120,12 @@ spec:
           - name: ENABLE_TRACING
             value: "1"
           {{- end }}
+          {{- if .Values.opentelemetry.metrics }}
+          - name: ENABLE_METRICS
+            value: "1"
+          - name: ENABLE_STATS
+            value: "1"
+          {{- end }}
           {{- if .Values.googleCloudOperations.profiler }}
           - name: ENABLE_PROFILER
             value: "1"

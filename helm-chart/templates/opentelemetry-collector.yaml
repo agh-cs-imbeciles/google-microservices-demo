@@ -117,6 +117,10 @@ kind: Service
 metadata:
   name: {{ .Values.opentelemetryCollector.name }}
   namespace: {{ .Release.Namespace }}
+  annotations:
+    prometheus.io/scrape: 'true'
+    prometheus.io/port: '8889'
+    prometheus.io/path: '/metrics'
 spec:
   ports:
   - name: grpc-otlp
