@@ -23,6 +23,7 @@ import (
 
 	"cloud.google.com/go/profiler"
 	"github.com/gorilla/mux"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
@@ -90,6 +91,7 @@ type frontendServer struct {
 func main() {
 	ctx := context.Background()
 	log := logrus.New()
+	log.Info("Starting service with Prometheus metrics enabled at /metrics")
 	log.Level = logrus.DebugLevel
 	log.Formatter = &logrus.JSONFormatter{
 		FieldMap: logrus.FieldMap{
@@ -146,6 +148,14 @@ func main() {
 	mustConnGRPC(ctx, &svc.adSvcConn, svc.adSvcAddr)
 
 	r := mux.NewRouter()
+
+	// Add the Prometheus metrics endpoint
+	r.Path("/metrics").Handler(promhttp.Handler())
+
+	// Add middleware for collecting metrics
+	r.Use(metricsMiddleware)
+
+	// Add application routes
 	r.HandleFunc(baseUrl + "/", svc.homeHandler).Methods(http.MethodGet, http.MethodHead)
 	r.HandleFunc(baseUrl + "/product/{id}", svc.productHandler).Methods(http.MethodGet, http.MethodHead)
 	r.HandleFunc(baseUrl + "/cart", svc.viewCartHandler).Methods(http.MethodGet, http.MethodHead)
@@ -232,4 +242,34 @@ func mustConnGRPC(ctx context.Context, conn **grpc.ClientConn, addr string) {
 	if err != nil {
 		panic(errors.Wrapf(err, "grpc: failed to connect %s", addr))
 	}
+}
+
+func initMetricsMiddleware() func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Skip metrics endpoint itself
+			if r.URL.Path == "/metrics" {
+				next.ServeHTTP(w, r)
+				return
+			}
+
+			start := time.Now()
+			recorder := &statusRecorder{ResponseWriter: w, Status: 200}
+			next.ServeHTTP(recorder, r)
+
+			duration := time.Since(start).Seconds()
+			httpRequestsTotal.WithLabelValues(fmt.Sprintf("%d", recorder.Status), r.Method).Inc()
+			httpRequestDuration.WithLabelValues(r.URL.Path).Observe(duration)
+		})
+	}
+}
+
+type statusRecorder struct {
+	http.ResponseWriter
+	Status int
+}
+
+func (r *statusRecorder) WriteHeader(status int) {
+	r.Status = status
+	r.ResponseWriter.WriteHeader(status)
 }
