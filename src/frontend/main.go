@@ -174,11 +174,8 @@ func main() {
 	var handler http.Handler = r
 	handler = &logHandler{log: log, next: handler}     // add logging
 	handler = ensureSessionID(handler)                 // add session ID
-	handler = metricsMiddleware(handler)              // add prometheus metrics
 	handler = otelhttp.NewHandler(handler, "frontend") // add OTel tracing
 
-	// Add metrics endpoint
-	http.Handle("/metrics", promhttp.Handler())
 	log.Infof("starting server on " + addr + ":" + srvPort + " with metrics at /metrics")
 	log.Fatal(http.ListenAndServe(addr+":"+srvPort, handler))
 }
@@ -247,32 +244,4 @@ func mustConnGRPC(ctx context.Context, conn **grpc.ClientConn, addr string) {
 	}
 }
 
-func initMetricsMiddleware() func(http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// Skip metrics endpoint itself
-			if r.URL.Path == "/metrics" {
-				next.ServeHTTP(w, r)
-				return
-			}
 
-			start := time.Now()
-			recorder := &statusRecorder{ResponseWriter: w, Status: 200}
-			next.ServeHTTP(recorder, r)
-
-			duration := time.Since(start).Seconds()
-			httpRequestsTotal.WithLabelValues(fmt.Sprintf("%d", recorder.Status), r.Method).Inc()
-			httpRequestDuration.WithLabelValues(r.URL.Path).Observe(duration)
-		})
-	}
-}
-
-type statusRecorder struct {
-	http.ResponseWriter
-	Status int
-}
-
-func (r *statusRecorder) WriteHeader(status int) {
-	r.Status = status
-	r.ResponseWriter.WriteHeader(status)
-}

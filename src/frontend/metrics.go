@@ -15,6 +15,10 @@
 package main
 
 import (
+	"fmt"
+	"net/http"
+	"time"
+
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
@@ -58,3 +62,42 @@ var (
 		},
 	)
 )
+
+type statusRecorder struct {
+	http.ResponseWriter
+	status int
+}
+
+func (r *statusRecorder) WriteHeader(status int) {
+	r.status = status
+	r.ResponseWriter.WriteHeader(status)
+}
+
+func (r *statusRecorder) Write(b []byte) (int, error) {
+	if r.status == 0 {
+		r.status = 200
+	}
+	return r.ResponseWriter.Write(b)
+}
+
+func metricsMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Skip metrics endpoint itself to avoid recursion
+		if r.URL.Path == "/metrics" {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		start := time.Now()
+		rec := &statusRecorder{ResponseWriter: w, status: 200}
+		next.ServeHTTP(rec, r)
+		duration := time.Since(start).Seconds()
+
+		httpRequestsTotal.WithLabelValues(
+			fmt.Sprintf("%d", rec.status),
+			r.Method,
+		).Inc()
+
+		httpRequestDuration.WithLabelValues(r.URL.Path).Observe(duration)
+	})
+}
