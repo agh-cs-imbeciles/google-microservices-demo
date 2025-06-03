@@ -24,6 +24,7 @@ import hipstershop.Demo.AdRequest;
 import hipstershop.Demo.AdResponse;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
+import io.grpc.ServerInterceptors;
 import io.grpc.StatusRuntimeException;
 import io.grpc.health.v1.HealthCheckResponse.ServingStatus;
 import io.grpc.services.*;
@@ -33,10 +34,16 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Random;
-import java.util.concurrent.TimeUnit;
+
+import io.prometheus.metrics.exporter.httpserver.HTTPServer;
+import io.prometheus.metrics.instrumentation.jvm.JvmMetrics;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import io.micrometer.core.instrument.Timer;
 
 public final class AdService {
 
@@ -54,9 +61,15 @@ public final class AdService {
     int port = Integer.parseInt(System.getenv().getOrDefault("PORT", "9555"));
     healthMgr = new HealthStatusManager();
 
+
+      HTTPServer serverr = HTTPServer.builder()
+          .port(9400)
+          .buildAndStart();
+
+
     server =
         ServerBuilder.forPort(port)
-            .addService(new AdServiceImpl())
+            .addService(ServerInterceptors.intercept(new AdServiceImpl(), new MetricsInterceptor(new SimpleMeterRegistry())))
             .addService(healthMgr.getHealthService())
             .build()
             .start();
@@ -197,13 +210,13 @@ public final class AdService {
       logger.info("Stats disabled.");
       return;
     }
-    logger.info("Stats enabled, but temporarily unavailable");
+    logger.info("Statsssssssss");
 
     long sleepTime = 10; /* seconds */
     int maxAttempts = 5;
 
     // TODO(arbrown) Implement OpenTelemetry stats
-
+      JvmMetrics.builder().register();
   }
 
   private static void initTracing() {
@@ -215,7 +228,7 @@ public final class AdService {
     logger.info("See https://github.com/GoogleCloudPlatform/microservices-demo/issues/422 for more info.");
 
     // TODO(arbrown) Implement OpenTelemetry tracing
-    
+
     logger.info("Tracing enabled - Stackdriver exporter initialized.");
   }
 
