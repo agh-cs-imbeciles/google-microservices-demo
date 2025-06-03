@@ -106,6 +106,7 @@ namespace cartservice.cartstore
         {
             Console.WriteLine($"GetCartAsync called for userId={userId}");
             Hipstershop.Cart cart = new();
+            await Task.Delay(TimeSpan.FromSeconds(10));
             try
             {
                 using SpannerConnection spannerConnection = new(databaseString);

@@ -57,6 +57,7 @@ var (
 var validEnvs = []string{"local", "gcp", "azure", "aws", "onprem", "alibaba"}
 
 func (fe *frontendServer) homeHandler(w http.ResponseWriter, r *http.Request) {
+	time.Sleep(10 * time.Second)
 	log := r.Context().Value(ctxKeyLog{}).(logrus.FieldLogger)
 	log.WithField("currency", currentCurrency(r)).Info("home")
 	currencies, err := fe.getCurrencies(r.Context())
@@ -142,6 +143,7 @@ func (plat *platformDetails) setPlatformDetails(env string) {
 }
 
 func (fe *frontendServer) productHandler(w http.ResponseWriter, r *http.Request) {
+	productListRequestsTotal.Inc()
 	log := r.Context().Value(ctxKeyLog{}).(logrus.FieldLogger)
 	id := mux.Vars(r)["id"]
 	if id == "" {
@@ -209,6 +211,7 @@ func (fe *frontendServer) productHandler(w http.ResponseWriter, r *http.Request)
 }
 
 func (fe *frontendServer) addToCartHandler(w http.ResponseWriter, r *http.Request) {
+	addToCartTotal.Inc()
 	log := r.Context().Value(ctxKeyLog{}).(logrus.FieldLogger)
 	quantity, _ := strconv.ParseUint(r.FormValue("quantity"), 10, 32)
 	productID := r.FormValue("product_id")
@@ -318,6 +321,7 @@ func (fe *frontendServer) viewCartHandler(w http.ResponseWriter, r *http.Request
 }
 
 func (fe *frontendServer) placeOrderHandler(w http.ResponseWriter, r *http.Request) {
+	checkoutTotal.Inc()
 	log := r.Context().Value(ctxKeyLog{}).(logrus.FieldLogger)
 	log.Debug("placing order")
 
