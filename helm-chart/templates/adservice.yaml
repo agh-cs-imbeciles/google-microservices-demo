@@ -103,6 +103,9 @@ spec:
   - name: grpc
     port: 9555
     targetPort: 9555
+  - name: metrics
+    port: 9400
+    targetPort: 9400
 {{- if .Values.networkPolicies.create }}
 ---
 apiVersion: networking.k8s.io/v1
