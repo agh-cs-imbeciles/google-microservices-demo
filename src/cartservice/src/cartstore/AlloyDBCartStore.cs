@@ -19,7 +19,7 @@ using Microsoft.Extensions.Configuration;
 using System.Threading.Tasks;
 using Google.Api.Gax.ResourceNames;
 using Google.Cloud.SecretManager.V1;
- 
+
 namespace cartservice.cartstore
 {
     public class AlloyDBCartStore : ICartStore
@@ -38,7 +38,7 @@ namespace cartservice.cartstore
             AccessSecretVersionResponse result = client.AccessSecretVersion(secretVersionName);
             // Convert the payload to a string. Payloads are bytes by default.
             string alloyDBPassword = result.Payload.Data.ToStringUtf8().TrimEnd('\r', '\n');
-        
+
             // TODO: Create a separate user for connecting within the application
             // rather than using our superuser
             string alloyDBUser = "postgres";
@@ -99,6 +99,7 @@ namespace cartservice.cartstore
             Console.WriteLine($"GetCartAsync called for userId={userId}");
             Hipstershop.Cart cart = new();
             cart.UserId = userId;
+            await Task.Delay(TimeSpan.FromSeconds(10));
             try
             {
                 await using var dataSource = NpgsqlDataSource.Create(connectionString);
