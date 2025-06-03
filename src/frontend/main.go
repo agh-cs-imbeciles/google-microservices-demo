@@ -174,9 +174,12 @@ func main() {
 	var handler http.Handler = r
 	handler = &logHandler{log: log, next: handler}     // add logging
 	handler = ensureSessionID(handler)                 // add session ID
+	handler = metricsMiddleware(handler)              // add prometheus metrics
 	handler = otelhttp.NewHandler(handler, "frontend") // add OTel tracing
 
-	log.Infof("starting server on " + addr + ":" + srvPort)
+	// Add metrics endpoint
+	http.Handle("/metrics", promhttp.Handler())
+	log.Infof("starting server on " + addr + ":" + srvPort + " with metrics at /metrics")
 	log.Fatal(http.ListenAndServe(addr+":"+srvPort, handler))
 }
 func initStats(log logrus.FieldLogger) {
