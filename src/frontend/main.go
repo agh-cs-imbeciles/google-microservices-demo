@@ -29,8 +29,13 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
+	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
 	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
 	"google.golang.org/grpc"
 )
 
@@ -59,7 +64,13 @@ var (
 
 type ctxKeySessionID struct{}
 
+type frontendMetrics struct {
+	requestCount    metric.Int64Counter
+	requestDuration metric.Float64Histogram
+}
+
 type frontendServer struct {
+	metrics              *frontendMetrics
 	productCatalogSvcAddr string
 	productCatalogSvcConn *grpc.ClientConn
 
@@ -116,6 +127,13 @@ func main() {
 		log.Info("Tracing disabled.")
 	}
 
+	if os.Getenv("ENABLE_METRICS") == "1" {
+		log.Info("Metrics enabled.")
+		initStats(log)
+	} else {
+		log.Info("Metrics disabled.")
+	}
+
 	if os.Getenv("ENABLE_PROFILER") == "1" {
 		log.Info("Profiling enabled.")
 		go initProfiling(log, "frontend", "1.0.0")
@@ -161,16 +179,75 @@ func main() {
 	r.HandleFunc(baseUrl + "/product-meta/{ids}", svc.getProductByID).Methods(http.MethodGet)
 	r.HandleFunc(baseUrl + "/bot", svc.chatBotHandler).Methods(http.MethodPost)
 
+	metrics, err := initStats(log)
+	if err != nil {
+		log.Warnf("Failed to initialize metrics: %v", err)
+	}
+	svc.metrics = metrics
+
 	var handler http.Handler = r
-	handler = &logHandler{log: log, next: handler}     // add logging
-	handler = ensureSessionID(handler)                 // add session ID
-	handler = otelhttp.NewHandler(handler, "frontend") // add OTel tracing
+	handler = &metricsHandler{next: handler, metrics: metrics} // add metrics
+	handler = &logHandler{log: log, next: handler}            // add logging
+	handler = ensureSessionID(handler)                        // add session ID
+	handler = otelhttp.NewHandler(handler, "frontend")        // add OTel tracing
+	handler = &metricsHandler{next: handler, metrics: svc.metrics} // add HTTP metrics
 
 	log.Infof("starting server on " + addr + ":" + srvPort)
 	log.Fatal(http.ListenAndServe(addr+":"+srvPort, handler))
 }
-func initStats(log logrus.FieldLogger) {
-	// TODO(arbrown) Implement OpenTelemtry stats
+func initStats(log logrus.FieldLogger) (*frontendMetrics, error) {
+	if os.Getenv("ENABLE_METRICS") != "1" {
+		log.Info("Metrics disabled.")
+		return nil, nil
+	}
+
+	log.Info("Metrics enabled.")
+
+	// Initialize OpenTelemetry metrics
+	resource := resource.NewWithAttributes(
+		semconv.SchemaURL,
+		semconv.ServiceName("frontend"),
+	)
+
+	exp, err := otlpmetricgrpc.New(
+		context.Background(),
+		otlpmetricgrpc.WithEndpoint(os.Getenv("COLLECTOR_SERVICE_ADDR")),
+		otlpmetricgrpc.WithInsecure(),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	meterProvider := metric.NewMeterProvider(
+		metric.WithResource(resource),
+		metric.WithReader(metric.NewPeriodicReader(exp)),
+	)
+	otel.SetMeterProvider(meterProvider)
+
+	meter := meterProvider.Meter("frontend")
+	
+	// Create metrics
+	requestCount, err := meter.Int64Counter(
+		"http_request_count",
+		metric.WithDescription("Number of HTTP requests processed"),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	requestDuration, err := meter.Float64Histogram(
+		"http_request_duration",
+		metric.WithDescription("Duration of HTTP requests"),
+		metric.WithUnit("ms"),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return &frontendMetrics{
+		requestCount:    requestCount,
+		requestDuration: requestDuration,
+	}, nil
 }
 
 func initTracing(log logrus.FieldLogger, ctx context.Context, svc *frontendServer) (*sdktrace.TracerProvider, error) {
@@ -231,5 +308,26 @@ func mustConnGRPC(ctx context.Context, conn **grpc.ClientConn, addr string) {
 		grpc.WithStreamInterceptor(otelgrpc.StreamClientInterceptor()))
 	if err != nil {
 		panic(errors.Wrapf(err, "grpc: failed to connect %s", addr))
+	}
+}
+
+type metricsHandler struct {
+	next    http.Handler
+	metrics *frontendMetrics
+}
+
+func (h *metricsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	h.next.ServeHTTP(w, r)
+	duration := float64(time.Since(start).Milliseconds())
+	
+	attrs := []attribute.KeyValue{
+		attribute.String("http.method", r.Method),
+		attribute.String("http.url", r.URL.Path),
+	}
+	
+	if h.metrics != nil {
+		h.metrics.requestCount.Add(r.Context(), 1, metric.WithAttributes(attrs...))
+		h.metrics.requestDuration.Record(r.Context(), duration, metric.WithAttributes(attrs...))
 	}
 }
