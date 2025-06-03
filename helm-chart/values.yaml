@@ -43,7 +43,7 @@ authorizationPolicies:
 
 opentelemetry:
   tracing: true
-  metrics: false
+  metrics: true
 
 opentelemetryCollector:
   create: true

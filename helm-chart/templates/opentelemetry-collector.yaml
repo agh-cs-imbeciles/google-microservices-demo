@@ -123,6 +123,10 @@ spec:
     port: 4317
     protocol: TCP
     targetPort: 4317
+  - name: prometheus-metrics
+    port: 8889
+    protocol: TCP
+    targetPort: 8889
   selector:
     app: {{ .Values.opentelemetryCollector.name }}
   type: ClusterIP
@@ -144,17 +148,26 @@ data:
           http:
             endpoint: 0.0.0.0:4318
     processors:
+      batch:
     exporters:
       otlp:
         endpoint: tempo.monitoring.svc.cluster.local:4317
         tls:
           insecure: true
+      prometheus:
+        endpoint: 0.0.0.0:8889
+        resource_to_telemetry_conversion:
+          enabled: true
     service:
       pipelines:
         traces:
           receivers: [otlp]
-          processors: []
+          processors: [batch]
           exporters: [otlp]
+        metrics:
+          receivers: [otlp]
+          processors: [batch]
+          exporters: [prometheus]
 {{- if .Values.networkPolicies.create }}
 ---
 apiVersion: networking.k8s.io/v1
