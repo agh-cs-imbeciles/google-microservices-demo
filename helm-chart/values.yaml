@@ -19,7 +19,7 @@
 images:
   repository: kpiotr6
   # Overrides the image tag whose default is the chart appVersion.
-  tag: "v1.0.0"
+  tag: ""
 
 serviceAccounts:
   # Specifies whether service accounts should be created.
