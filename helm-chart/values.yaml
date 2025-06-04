@@ -17,9 +17,9 @@
 # Declare variables to be passed into your templates.
 
 images:
-  repository: suselkowy
+  repository: kpiotr6
   # Overrides the image tag whose default is the chart appVersion.
-  tag: "vibe"
+  tag: ""
 
 serviceAccounts:
   # Specifies whether service accounts should be created.
