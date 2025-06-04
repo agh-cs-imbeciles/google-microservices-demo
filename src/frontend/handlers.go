@@ -211,6 +211,10 @@ func (fe *frontendServer) productHandler(w http.ResponseWriter, r *http.Request)
 }
 
 func (fe *frontendServer) addToCartHandler(w http.ResponseWriter, r *http.Request) {
+	// Add artificial delay between 500ms and 3s to make duration metrics more visible
+	sleepTime := time.Duration(500+rand.Intn(2500)) * time.Millisecond
+	time.Sleep(sleepTime)
+
 	addToCartTotal.Inc()
 	log := r.Context().Value(ctxKeyLog{}).(logrus.FieldLogger)
 	quantity, _ := strconv.ParseUint(r.FormValue("quantity"), 10, 32)
@@ -252,6 +256,10 @@ func (fe *frontendServer) emptyCartHandler(w http.ResponseWriter, r *http.Reques
 }
 
 func (fe *frontendServer) viewCartHandler(w http.ResponseWriter, r *http.Request) {
+	// Add artificial delay between 500ms and 3s to make duration metrics more visible
+	sleepTime := time.Duration(500+rand.Intn(2500)) * time.Millisecond
+	time.Sleep(sleepTime)
+
 	log := r.Context().Value(ctxKeyLog{}).(logrus.FieldLogger)
 	log.Debug("view user cart")
 	currencies, err := fe.getCurrencies(r.Context())
